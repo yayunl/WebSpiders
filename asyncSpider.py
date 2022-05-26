@@ -1,4 +1,4 @@
-import asyncio, time, requests, aiohttp
+import asyncio, time, requests, aiohttp, json
 
 # Silence the event loop is closed message
 from functools import wraps
@@ -25,14 +25,6 @@ async def execute(x, y=20):
     return x+y
 
 
-async def get_url(url):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            print("ULR=> ", url)
-            resp =  await resp.text()
-            print("Response is ", resp)
-
-
 async def factorial(name, number):
     f = 1
     for i in range(2, number + 1):
@@ -43,14 +35,40 @@ async def factorial(name, number):
     return f
 
 
+async def fetch_url(url, http_method='get', fetch_field='args', **kwargs):
+    """
+    Send an asynchronous GET request and await for the response.
+    :param url:
+    :param http_method: HTTP method (i.e. 'get', 'post','put', 'delete')
+    :param fetch_field: the field name of the returned value in the response
+    :param kwargs:
+    :return:
+    """
+    async with aiohttp.ClientSession() as session:
+        # Get the function by its name. i.e. session.get()
+        method_to_call = getattr(session, http_method)
+        async with method_to_call(url, **kwargs) as resp:
+            print("Fetch URL=> ", url)
+            resp, status = await resp.text(), resp.status
+            print("Response is ", resp, " Status code is ", status)
+            # Convert string to json
+            js_result = json.loads(resp)
+            return js_result.get(fetch_field)
+
+
 async def main():
     # Schedule three calls *concurrently*:
     # tasks = [get_url('https://httpbin.org/delay/5') for i in range(5)]
-    L = await asyncio.gather(get_url('https://httpbin.org/delay/5'),
-                             get_url('https://httpbin.org/delay/5'))
-    print("Results=> ",L)
+    L = await asyncio.gather(fetch_url('https://httpbin.org/delay/5', data={"greeting": 'Hello!'},
+                                       http_method='post',
+                                       fetch_field='form'),
+                             fetch_url('https://httpbin.org/delay/5', params={"location": 'Austin,TX'},
+                                       http_method='get',
+                                       fetch_field='args'))
+    print("Results => ", L)
 
 
 if __name__ == '__main__':
+    # For Windows only. To suppress warning of event loop closed earlier
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     asyncio.run(main())
